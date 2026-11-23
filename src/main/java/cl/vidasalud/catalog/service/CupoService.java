@@ -43,4 +43,11 @@ public class CupoService {
         reservas.save(new Reserva(c.atencionId(), cupo.get().getId()));
         return Resultado.RESERVADO;
     }
+
+    /** Cupos que aún quedan en el horario del comando (0 si no hay). Lo usa el evento de ocupación de Kafka. */
+    @Transactional(readOnly = true)
+    public int restantes(ConfirmarAtencionCommand c) {
+        return cupos.findFirstByPrestacionIdAndFechaAndHoraAndDisponiblesGreaterThan(
+                c.prestacionId(), c.fecha(), c.hora(), 0).map(Cupo::getDisponibles).orElse(0);
+    }
 }

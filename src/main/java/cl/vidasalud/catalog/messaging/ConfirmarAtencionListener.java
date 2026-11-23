@@ -2,6 +2,7 @@ package cl.vidasalud.catalog.messaging;
 
 import cl.vidasalud.catalog.dto.AtencionEvent;
 import cl.vidasalud.catalog.dto.ConfirmarAtencionCommand;
+import cl.vidasalud.catalog.messaging.kafka.CupoKafkaProducer;
 import cl.vidasalud.catalog.service.CupoService;
 import com.rabbitmq.client.Channel;
 import java.io.IOException;
@@ -25,12 +26,15 @@ public class ConfirmarAtencionListener {
     private final EventPublisher events;
     private final JsonCodec json;
     private final AckSupport ack;
+    private final CupoKafkaProducer kafka;
 
-    public ConfirmarAtencionListener(CupoService cupos, EventPublisher events, JsonCodec json, AckSupport ack) {
+    public ConfirmarAtencionListener(CupoService cupos, EventPublisher events, JsonCodec json, AckSupport ack,
+                                     CupoKafkaProducer kafka) {
         this.cupos = cupos;
         this.events = events;
         this.json = json;
         this.ack = ack;
+        this.kafka = kafka;
     }
 
     @RabbitListener(queues = RabbitNames.Q_CONFIRMAR)
@@ -41,8 +45,15 @@ public class ConfirmarAtencionListener {
                 throw new IllegalArgumentException("Comando incompleto");
             }
             switch (cupos.reservar(cmd)) {
-                case RESERVADO, YA_RESERVADO -> events.publicar(cmd, AtencionEvent.CONFIRMADA, null);
-                case SIN_CUPOS -> events.publicar(cmd, AtencionEvent.RECHAZADA, "Sin cupos disponibles en ese horario");
+                case RESERVADO -> {
+                    events.publicar(cmd, AtencionEvent.CONFIRMADA, null);
+                    kafka.publicarOcupacion(cmd, cupos.restantes(cmd));
+                }
+                case YA_RESERVADO -> events.publicar(cmd, AtencionEvent.CONFIRMADA, null);
+                case SIN_CUPOS -> {
+                    events.publicar(cmd, AtencionEvent.RECHAZADA, "Sin cupos disponibles en ese horario");
+                    kafka.publicarOcupacion(cmd, 0);
+                }
             }
             ack.ack(channel, message);
             log.info("Comando procesado atencion={}", cmd.atencionId());
