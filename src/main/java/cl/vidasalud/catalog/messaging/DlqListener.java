@@ -7,10 +7,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-/** Consume la DLQ de comandos de confirmación y deja registro en logs de cada mensaje no entregado. */
+/**
+ * Consume la DLQ de comandos de confirmación y deja registro en logs de cada mensaje no entregado.
+ * Con app.dlq.listener.enabled=false (DLQ_LISTENER_ENABLED=false) no se consume: los mensajes se
+ * acumulan en la cola y se pueden inspeccionar en la consola de RabbitMQ (modo demostración).
+ */
 @Component
+@ConditionalOnProperty(name = "app.dlq.listener.enabled", havingValue = "true", matchIfMissing = true)
 public class DlqListener {
     private static final Logger log = LoggerFactory.getLogger(DlqListener.class);
     private final AckSupport ack;
